@@ -12,7 +12,7 @@ let processor = new EvmBatchProcessor()
     .setBlockRange({from: 12369621})
     .setDataSource({
         archive: 'https://eth-test.archive.subsquid.io',
-        chain: CHAIN_NODE,
+        chain: process.env.CHAIN_NODE,
     })
     .addLog(FACTORY_ADDRESS, {
         filter: [[factoryAbi.events['PoolCreated(address,address,uint24,int24,address)'].topic]],
