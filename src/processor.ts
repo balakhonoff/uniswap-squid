@@ -11,7 +11,7 @@ import * as positionsAbi from './abi/NonfungiblePositionManager'
 let processor = new EvmBatchProcessor()
     .setBlockRange({from: 12369621})
     .setDataSource({
-        archive: 'https://eth-test.archive.subsquid.io',
+        archive: 'https://eth.archive.subsquid.io',
         chain: process.env.CHAIN_NODE,
     })
     .addLog(FACTORY_ADDRESS, {
