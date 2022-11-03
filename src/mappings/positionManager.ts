@@ -137,8 +137,10 @@ export class PositionProcessor extends MappingProcessor<Item> {
         let position = this.entities.get(Position, data.tokenId, false)
         if (position == null) return
 
-        let token0 = await this.entities.getOrFail(Token, position.token0Id)
-        let token1 = await this.entities.getOrFail(Token, position.token1Id)
+        let token0 = await this.entities.get(Token, position.token0Id)
+        let token1 = await this.entities.get(Token, position.token1Id)
+
+        if (!token0 || !token1) return
 
         let amount0 = BigDecimal(data.amount0, token0.decimals).toNumber()
         let amount1 = BigDecimal(data.amount1, token1.decimals).toNumber()
@@ -160,8 +162,10 @@ export class PositionProcessor extends MappingProcessor<Item> {
         // temp fix
         if (position.poolId === '0x8fe8d9bb8eeba3ed688069c3d6b556c9ca258248') return
 
-        let token0 = await this.entities.getOrFail(Token, position.token0Id)
-        let token1 = await this.entities.getOrFail(Token, position.token1Id)
+        let token0 = await this.entities.get(Token, position.token0Id)
+        let token1 = await this.entities.get(Token, position.token1Id)
+
+        if (!token0 || !token1) return
 
         let amount0 = BigDecimal(data.amount0, token0.decimals).toNumber()
         let amount1 = BigDecimal(data.amount1, token1.decimals).toNumber()

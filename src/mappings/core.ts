@@ -470,16 +470,20 @@ export class PairsProcessor extends MappingProcessor<Item> {
 
         // tick entities
         let lowerTickId = tickId(pool.id, data.tickLower)
-        const lowerTick = await this.entities.getOrFail(Tick, lowerTickId)
+        const lowerTick = await this.entities.get(Tick, lowerTickId)
 
         let upperTickId = tickId(pool.id, data.tickUpper)
-        const upperTick = await this.entities.getOrFail(Tick, upperTickId)
+        const upperTick = await this.entities.get(Tick, upperTickId)
 
-        lowerTick.liquidityGross -= data.amount
-        lowerTick.liquidityNet -= data.amount
+        if (lowerTick) {
+            lowerTick.liquidityGross -= data.amount
+            lowerTick.liquidityNet -= data.amount
+        }
 
-        upperTick.liquidityGross -= data.amount
-        upperTick.liquidityNet += data.amount
+        if (upperTick) {
+            upperTick.liquidityGross -= data.amount
+            upperTick.liquidityNet += data.amount
+        }
 
         await this.updateUniswapDayData(block)
         await this.updatePoolDayData(block, pool.id)
