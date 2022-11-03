@@ -209,6 +209,7 @@ export class MulticallContract {
   allowance = this['allowance(address,address)']
 
   private async call(signature: string, args: [string, any[]][]) : Promise<any> {
+    if (args.length == 0) return []
     const encodedArgs = args.map((arg) => [arg[0], abi.encodeFunctionData(signature, arg[1])])
     const data = multicallAbi.encodeFunctionData('aggregate', [encodedArgs])
     const response = await this._chain.client.call('eth_call', [{to: this.address, data}, this.blockHeight])
@@ -222,6 +223,7 @@ export class MulticallContract {
   }
 
   private async tryCall(signature: string, args: [string, any[]][]) : Promise<Result<any>[]> {
+    if (args.length == 0) return []
     const encodedArgs = args.map((arg) => [arg[0], abi.encodeFunctionData(signature, arg[1])])
     const data = multicallAbi.encodeFunctionData('tryAggregate', [false, encodedArgs])
     const response = await this._chain.client.call('eth_call', [{to: this.address, data}, this.blockHeight])
