@@ -137,6 +137,7 @@ export class PositionProcessor extends MappingProcessor<Item> {
         let position = this.entities.get(Position, data.tokenId, false)
         if (position == null) return
 
+
         let token0 = await this.entities.get(Token, position.token0Id)
         let token1 = await this.entities.get(Token, position.token1Id)
 
@@ -159,9 +160,6 @@ export class PositionProcessor extends MappingProcessor<Item> {
         let position = this.entities.get(Position, data.tokenId, false)
         if (position == null) return
 
-        // temp fix
-        if (position.poolId === '0x8fe8d9bb8eeba3ed688069c3d6b556c9ca258248') return
-
         let token0 = await this.entities.get(Token, position.token0Id)
         let token1 = await this.entities.get(Token, position.token1Id)
 
@@ -182,8 +180,6 @@ export class PositionProcessor extends MappingProcessor<Item> {
         // position was not able to be fetched
         if (position == null) return
 
-        if (position.poolId === '0x8fe8d9bb8eeba3ed688069c3d6b556c9ca258248') return
-
         let token0 = this.entities.getOrFail(Token, position.token0Id, false)
         let amount0 = BigDecimal(data.amount0, token0.decimals).toNumber()
 
@@ -195,6 +191,7 @@ export class PositionProcessor extends MappingProcessor<Item> {
 
     async processTransferData(block: EvmBlock, data: TransferData) {
         let position = this.entities.get(Position, data.tokenId, false)
+
         // position was not able to be fetched
         if (position == null) return
 
@@ -274,6 +271,10 @@ async function initPositions(ctx: BlockHandlerContext<unknown>, ids: string[]) {
         position.token0Id = positionsData[i].token0Id
         position.token1Id = positionsData[i].token1Id
         position.poolId = poolIds[i].toLowerCase()
+
+        // temp fix
+        if (position.poolId === '0x8fe8d9bb8eeba3ed688069c3d6b556c9ca258248') continue
+
         positions.push(position)
     }
 
