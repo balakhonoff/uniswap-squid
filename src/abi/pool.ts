@@ -26,84 +26,67 @@ export type SetFeeProtocol0Event = ([feeProtocol0Old: number, feeProtocol1Old: n
 export type Swap0Event = ([sender: string, recipient: string, amount0: ethers.BigNumber, amount1: ethers.BigNumber, sqrtPriceX96: ethers.BigNumber, liquidity: ethers.BigNumber, tick: number] & {sender: string, recipient: string, amount0: ethers.BigNumber, amount1: ethers.BigNumber, sqrtPriceX96: ethers.BigNumber, liquidity: ethers.BigNumber, tick: number})
 
 class Events {
+  private readonly _abi = abi
 
   'Burn(address,int24,int24,uint128,uint256,uint256)' = {
-    topic: abi.getEventTopic('Burn(address,int24,int24,uint128,uint256,uint256)'),
-    decode(data: EvmLog): Burn0Event {
-      return abi.decodeEventLog('Burn(address,int24,int24,uint128,uint256,uint256)', data.data, data.topics) as any
-    }
+    topic: this._abi.getEventTopic('Burn(address,int24,int24,uint128,uint256,uint256)'),
+    decode: (data: EvmLog): Burn0Event => this._abi.decodeEventLog('Burn(address,int24,int24,uint128,uint256,uint256)', data.data, data.topics) as any
   }
 
   Burn = this['Burn(address,int24,int24,uint128,uint256,uint256)']
 
   'Collect(address,address,int24,int24,uint128,uint128)' = {
-    topic: abi.getEventTopic('Collect(address,address,int24,int24,uint128,uint128)'),
-    decode(data: EvmLog): Collect0Event {
-      return abi.decodeEventLog('Collect(address,address,int24,int24,uint128,uint128)', data.data, data.topics) as any
-    }
+    topic: this._abi.getEventTopic('Collect(address,address,int24,int24,uint128,uint128)'),
+    decode: (data: EvmLog): Collect0Event => this._abi.decodeEventLog('Collect(address,address,int24,int24,uint128,uint128)', data.data, data.topics) as any
   }
 
   Collect = this['Collect(address,address,int24,int24,uint128,uint128)']
 
   'CollectProtocol(address,address,uint128,uint128)' = {
-    topic: abi.getEventTopic('CollectProtocol(address,address,uint128,uint128)'),
-    decode(data: EvmLog): CollectProtocol0Event {
-      return abi.decodeEventLog('CollectProtocol(address,address,uint128,uint128)', data.data, data.topics) as any
-    }
+    topic: this._abi.getEventTopic('CollectProtocol(address,address,uint128,uint128)'),
+    decode: (data: EvmLog): CollectProtocol0Event => this._abi.decodeEventLog('CollectProtocol(address,address,uint128,uint128)', data.data, data.topics) as any
   }
 
   CollectProtocol = this['CollectProtocol(address,address,uint128,uint128)']
 
   'Flash(address,address,uint256,uint256,uint256,uint256)' = {
-    topic: abi.getEventTopic('Flash(address,address,uint256,uint256,uint256,uint256)'),
-    decode(data: EvmLog): Flash0Event {
-      return abi.decodeEventLog('Flash(address,address,uint256,uint256,uint256,uint256)', data.data, data.topics) as any
-    }
+    topic: this._abi.getEventTopic('Flash(address,address,uint256,uint256,uint256,uint256)'),
+    decode: (data: EvmLog): Flash0Event => this._abi.decodeEventLog('Flash(address,address,uint256,uint256,uint256,uint256)', data.data, data.topics) as any
   }
 
   Flash = this['Flash(address,address,uint256,uint256,uint256,uint256)']
 
   'IncreaseObservationCardinalityNext(uint16,uint16)' = {
-    topic: abi.getEventTopic('IncreaseObservationCardinalityNext(uint16,uint16)'),
-    decode(data: EvmLog): IncreaseObservationCardinalityNext0Event {
-      return abi.decodeEventLog('IncreaseObservationCardinalityNext(uint16,uint16)', data.data, data.topics) as any
-    }
+    topic: this._abi.getEventTopic('IncreaseObservationCardinalityNext(uint16,uint16)'),
+    decode: (data: EvmLog): IncreaseObservationCardinalityNext0Event => this._abi.decodeEventLog('IncreaseObservationCardinalityNext(uint16,uint16)', data.data, data.topics) as any
   }
 
   IncreaseObservationCardinalityNext = this['IncreaseObservationCardinalityNext(uint16,uint16)']
 
   'Initialize(uint160,int24)' = {
-    topic: abi.getEventTopic('Initialize(uint160,int24)'),
-    decode(data: EvmLog): Initialize0Event {
-      return abi.decodeEventLog('Initialize(uint160,int24)', data.data, data.topics) as any
-    }
+    topic: this._abi.getEventTopic('Initialize(uint160,int24)'),
+    decode: (data: EvmLog): Initialize0Event => this._abi.decodeEventLog('Initialize(uint160,int24)', data.data, data.topics) as any
   }
 
   Initialize = this['Initialize(uint160,int24)']
 
   'Mint(address,address,int24,int24,uint128,uint256,uint256)' = {
-    topic: abi.getEventTopic('Mint(address,address,int24,int24,uint128,uint256,uint256)'),
-    decode(data: EvmLog): Mint0Event {
-      return abi.decodeEventLog('Mint(address,address,int24,int24,uint128,uint256,uint256)', data.data, data.topics) as any
-    }
+    topic: this._abi.getEventTopic('Mint(address,address,int24,int24,uint128,uint256,uint256)'),
+    decode: (data: EvmLog): Mint0Event => this._abi.decodeEventLog('Mint(address,address,int24,int24,uint128,uint256,uint256)', data.data, data.topics) as any
   }
 
   Mint = this['Mint(address,address,int24,int24,uint128,uint256,uint256)']
 
   'SetFeeProtocol(uint8,uint8,uint8,uint8)' = {
-    topic: abi.getEventTopic('SetFeeProtocol(uint8,uint8,uint8,uint8)'),
-    decode(data: EvmLog): SetFeeProtocol0Event {
-      return abi.decodeEventLog('SetFeeProtocol(uint8,uint8,uint8,uint8)', data.data, data.topics) as any
-    }
+    topic: this._abi.getEventTopic('SetFeeProtocol(uint8,uint8,uint8,uint8)'),
+    decode: (data: EvmLog): SetFeeProtocol0Event => this._abi.decodeEventLog('SetFeeProtocol(uint8,uint8,uint8,uint8)', data.data, data.topics) as any
   }
 
   SetFeeProtocol = this['SetFeeProtocol(uint8,uint8,uint8,uint8)']
 
   'Swap(address,address,int256,int256,uint160,uint128,int24)' = {
-    topic: abi.getEventTopic('Swap(address,address,int256,int256,uint160,uint128,int24)'),
-    decode(data: EvmLog): Swap0Event {
-      return abi.decodeEventLog('Swap(address,address,int256,int256,uint160,uint128,int24)', data.data, data.topics) as any
-    }
+    topic: this._abi.getEventTopic('Swap(address,address,int256,int256,uint160,uint128,int24)'),
+    decode: (data: EvmLog): Swap0Event => this._abi.decodeEventLog('Swap(address,address,int256,int256,uint160,uint128,int24)', data.data, data.topics) as any
   }
 
   Swap = this['Swap(address,address,int256,int256,uint160,uint128,int24)']
@@ -130,84 +113,67 @@ export type SetFeeProtocol0Function = ([feeProtocol0: number, feeProtocol1: numb
 export type Swap0Function = ([recipient: string, zeroForOne: boolean, amountSpecified: ethers.BigNumber, sqrtPriceLimitX96: ethers.BigNumber, data: string] & {recipient: string, zeroForOne: boolean, amountSpecified: ethers.BigNumber, sqrtPriceLimitX96: ethers.BigNumber, data: string})
 
 class Functions {
+  private readonly _abi = abi
 
   'burn(int24,int24,uint128)' = {
     sighash: abi.getSighash('burn(int24,int24,uint128)'),
-    decode(data: EvmTransaction | string): Burn0Function {
-      return abi.decodeFunctionData('burn(int24,int24,uint128)', typeof data === 'string' ? data : data.input) as any
-    }
+    decode: (data: EvmTransaction | string): Burn0Function => this._abi.decodeFunctionData('burn(int24,int24,uint128)', typeof data === 'string' ? data : data.input) as any
   }
 
   burn = this['burn(int24,int24,uint128)']
 
   'collect(address,int24,int24,uint128,uint128)' = {
     sighash: abi.getSighash('collect(address,int24,int24,uint128,uint128)'),
-    decode(data: EvmTransaction | string): Collect0Function {
-      return abi.decodeFunctionData('collect(address,int24,int24,uint128,uint128)', typeof data === 'string' ? data : data.input) as any
-    }
+    decode: (data: EvmTransaction | string): Collect0Function => this._abi.decodeFunctionData('collect(address,int24,int24,uint128,uint128)', typeof data === 'string' ? data : data.input) as any
   }
 
   collect = this['collect(address,int24,int24,uint128,uint128)']
 
   'collectProtocol(address,uint128,uint128)' = {
     sighash: abi.getSighash('collectProtocol(address,uint128,uint128)'),
-    decode(data: EvmTransaction | string): CollectProtocol0Function {
-      return abi.decodeFunctionData('collectProtocol(address,uint128,uint128)', typeof data === 'string' ? data : data.input) as any
-    }
+    decode: (data: EvmTransaction | string): CollectProtocol0Function => this._abi.decodeFunctionData('collectProtocol(address,uint128,uint128)', typeof data === 'string' ? data : data.input) as any
   }
 
   collectProtocol = this['collectProtocol(address,uint128,uint128)']
 
   'flash(address,uint256,uint256,bytes)' = {
     sighash: abi.getSighash('flash(address,uint256,uint256,bytes)'),
-    decode(data: EvmTransaction | string): Flash0Function {
-      return abi.decodeFunctionData('flash(address,uint256,uint256,bytes)', typeof data === 'string' ? data : data.input) as any
-    }
+    decode: (data: EvmTransaction | string): Flash0Function => this._abi.decodeFunctionData('flash(address,uint256,uint256,bytes)', typeof data === 'string' ? data : data.input) as any
   }
 
   flash = this['flash(address,uint256,uint256,bytes)']
 
   'increaseObservationCardinalityNext(uint16)' = {
     sighash: abi.getSighash('increaseObservationCardinalityNext(uint16)'),
-    decode(data: EvmTransaction | string): IncreaseObservationCardinalityNext0Function {
-      return abi.decodeFunctionData('increaseObservationCardinalityNext(uint16)', typeof data === 'string' ? data : data.input) as any
-    }
+    decode: (data: EvmTransaction | string): IncreaseObservationCardinalityNext0Function => this._abi.decodeFunctionData('increaseObservationCardinalityNext(uint16)', typeof data === 'string' ? data : data.input) as any
   }
 
   increaseObservationCardinalityNext = this['increaseObservationCardinalityNext(uint16)']
 
   'initialize(uint160)' = {
     sighash: abi.getSighash('initialize(uint160)'),
-    decode(data: EvmTransaction | string): Initialize0Function {
-      return abi.decodeFunctionData('initialize(uint160)', typeof data === 'string' ? data : data.input) as any
-    }
+    decode: (data: EvmTransaction | string): Initialize0Function => this._abi.decodeFunctionData('initialize(uint160)', typeof data === 'string' ? data : data.input) as any
   }
 
   initialize = this['initialize(uint160)']
 
   'mint(address,int24,int24,uint128,bytes)' = {
     sighash: abi.getSighash('mint(address,int24,int24,uint128,bytes)'),
-    decode(data: EvmTransaction | string): Mint0Function {
-      return abi.decodeFunctionData('mint(address,int24,int24,uint128,bytes)', typeof data === 'string' ? data : data.input) as any
-    }
+    decode: (data: EvmTransaction | string): Mint0Function => this._abi.decodeFunctionData('mint(address,int24,int24,uint128,bytes)', typeof data === 'string' ? data : data.input) as any
   }
 
   mint = this['mint(address,int24,int24,uint128,bytes)']
 
   'setFeeProtocol(uint8,uint8)' = {
     sighash: abi.getSighash('setFeeProtocol(uint8,uint8)'),
-    decode(data: EvmTransaction | string): SetFeeProtocol0Function {
-      return abi.decodeFunctionData('setFeeProtocol(uint8,uint8)', typeof data === 'string' ? data : data.input) as any
-    }
+    decode: (data: EvmTransaction | string): SetFeeProtocol0Function => this._abi.decodeFunctionData('setFeeProtocol(uint8,uint8)', typeof data === 'string' ? data : data.input) as any
   }
 
   setFeeProtocol = this['setFeeProtocol(uint8,uint8)']
 
   'swap(address,bool,int256,uint160,bytes)' = {
     sighash: abi.getSighash('swap(address,bool,int256,uint160,bytes)'),
-    decode(data: EvmTransaction | string): Swap0Function {
-      return abi.decodeFunctionData('swap(address,bool,int256,uint160,bytes)', typeof data === 'string' ? data : data.input) as any
-    }
+    decode: (data: EvmTransaction | string): Swap0Function => this._abi.decodeFunctionData('swap(address,bool,int256,uint160,bytes)', typeof data === 'string' ? data : data.input) as any
   }
 
   swap = this['swap(address,bool,int256,uint160,bytes)']
@@ -216,6 +182,7 @@ class Functions {
 export const functions = new Functions()
 
 export class Contract {
+  private readonly _abi = abi
   private readonly _chain: Chain
   private readonly blockHeight: string
   readonly address: string
@@ -355,24 +322,26 @@ export class Contract {
   token1 = this['token1()']
 
   private async call(signature: string, args: any[]) : Promise<any> {
-    const data = abi.encodeFunctionData(signature, args)
+    const data = this._abi.encodeFunctionData(signature, args)
     const result = await this._chain.client.call('eth_call', [{to: this.address, data}, this.blockHeight])
-    const decoded = abi.decodeFunctionResult(signature, result)
+    const decoded = this._abi.decodeFunctionResult(signature, result)
     return decoded.length > 1 ? decoded : decoded[0]
   }
 
   private async tryCall(signature: string, args: any[]) : Promise<Result<any>> {
-    return this.call(signature, args).then(r => ({success: true, value: r})).catch(() => ({success: false}))
+    return this.call(signature, args).then((r) => ({success: true, value: r})).catch(() => ({success: false}))
   }
 }
 
 export class MulticallContract {
+  private readonly _abi = abi
+  private readonly _multicallAbi = multicallAbi
   private readonly _chain: Chain
   private readonly blockHeight: string
   readonly address: string
 
-  constructor(ctx: BlockContext, address: string)
-  constructor(ctx: ChainContext, block: Block, address: string)
+  constructor(ctx: BlockContext, multicallAddress: string)
+  constructor(ctx: ChainContext, block: Block, multicallAddress: string)
   constructor(ctx: BlockContext, blockOrAddress: Block | string, address?: string) {
     this._chain = ctx._chain
     if (typeof blockOrAddress === 'string')  {
@@ -506,35 +475,29 @@ export class MulticallContract {
   token1 = this['token1()']
 
   private async call(signature: string, args: [string, any[]][]) : Promise<any> {
-    if (args.length == 0) return []
-    const encodedArgs = args.map((arg) => [arg[0], abi.encodeFunctionData(signature, arg[1])])
-    const data = multicallAbi.encodeFunctionData('aggregate', [encodedArgs])
+    const encodedArgs = args.map((arg) => [arg[0], this._abi.encodeFunctionData(signature, arg[1])])
+    const data = this._multicallAbi.encodeFunctionData('aggregate', [encodedArgs])
     const response = await this._chain.client.call('eth_call', [{to: this.address, data}, this.blockHeight])
-    const batch = multicallAbi.decodeFunctionResult('aggregate', response).returnData
-    const result: any[] = []
-    for (const item of batch) {
-      const decodedItem = abi.decodeFunctionResult(signature, item)
-      result.push(decodedItem.length > 1 ? decodedItem : decodedItem[0])
-    }
-    return result
+    const batch: string[] = this._multicallAbi.decodeFunctionResult('aggregate', response).returnData
+    return batch.map((item) => {
+      const decodedItem = this._abi.decodeFunctionResult(signature, item)
+      return decodedItem.length > 1 ? decodedItem : decodedItem[0]
+    })
   }
 
   private async tryCall(signature: string, args: [string, any[]][]) : Promise<Result<any>[]> {
-    if (args.length == 0) return []
-    const encodedArgs = args.map((arg) => [arg[0], abi.encodeFunctionData(signature, arg[1])])
-    const data = multicallAbi.encodeFunctionData('tryAggregate', [false, encodedArgs])
+    const encodedArgs = args.map((arg) => [arg[0], this._abi.encodeFunctionData(signature, arg[1])])
+    const data = this._multicallAbi.encodeFunctionData('tryAggregate', [false, encodedArgs])
     const response = await this._chain.client.call('eth_call', [{to: this.address, data}, this.blockHeight])
-    const batch = multicallAbi.decodeFunctionResult('tryAggregate', response).returnData
-    const result: any[] = []
-    for (const item of batch) {
+    const batch: {success: boolean, returnData: string}[] = this._multicallAbi.decodeFunctionResult('tryAggregate', response).returnData
+    return batch.map((item) => {
+      if (!item.success) return {success: false}
       try {
-        if (!item.success) throw new Error()
-        const decodedItem = abi.decodeFunctionResult(signature, item.returnData)
-        result.push({success:true, value: decodedItem.length > 1 ? decodedItem : decodedItem[0]})
+        const decodedItem = this._abi.decodeFunctionResult(signature, item.returnData)
+        return {success: true, value: decodedItem.length > 1 ? decodedItem : decodedItem[0]}
       } catch {
-        result.push({success: false})
+        return {success: false}
       }
-    }
-    return result
+    })
   }
 }

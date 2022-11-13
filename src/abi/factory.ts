@@ -14,30 +14,25 @@ export type OwnerChanged0Event = ([oldOwner: string, newOwner: string] & {oldOwn
 export type PoolCreated0Event = ([token0: string, token1: string, fee: number, tickSpacing: number, pool: string] & {token0: string, token1: string, fee: number, tickSpacing: number, pool: string})
 
 class Events {
+  private readonly _abi = abi
 
   'FeeAmountEnabled(uint24,int24)' = {
-    topic: abi.getEventTopic('FeeAmountEnabled(uint24,int24)'),
-    decode(data: EvmLog): FeeAmountEnabled0Event {
-      return abi.decodeEventLog('FeeAmountEnabled(uint24,int24)', data.data, data.topics) as any
-    }
+    topic: this._abi.getEventTopic('FeeAmountEnabled(uint24,int24)'),
+    decode: (data: EvmLog): FeeAmountEnabled0Event => this._abi.decodeEventLog('FeeAmountEnabled(uint24,int24)', data.data, data.topics) as any
   }
 
   FeeAmountEnabled = this['FeeAmountEnabled(uint24,int24)']
 
   'OwnerChanged(address,address)' = {
-    topic: abi.getEventTopic('OwnerChanged(address,address)'),
-    decode(data: EvmLog): OwnerChanged0Event {
-      return abi.decodeEventLog('OwnerChanged(address,address)', data.data, data.topics) as any
-    }
+    topic: this._abi.getEventTopic('OwnerChanged(address,address)'),
+    decode: (data: EvmLog): OwnerChanged0Event => this._abi.decodeEventLog('OwnerChanged(address,address)', data.data, data.topics) as any
   }
 
   OwnerChanged = this['OwnerChanged(address,address)']
 
   'PoolCreated(address,address,uint24,int24,address)' = {
-    topic: abi.getEventTopic('PoolCreated(address,address,uint24,int24,address)'),
-    decode(data: EvmLog): PoolCreated0Event {
-      return abi.decodeEventLog('PoolCreated(address,address,uint24,int24,address)', data.data, data.topics) as any
-    }
+    topic: this._abi.getEventTopic('PoolCreated(address,address,uint24,int24,address)'),
+    decode: (data: EvmLog): PoolCreated0Event => this._abi.decodeEventLog('PoolCreated(address,address,uint24,int24,address)', data.data, data.topics) as any
   }
 
   PoolCreated = this['PoolCreated(address,address,uint24,int24,address)']
@@ -52,30 +47,25 @@ export type EnableFeeAmount0Function = ([fee: number, tickSpacing: number] & {fe
 export type SetOwner0Function = ([_owner: string] & {_owner: string})
 
 class Functions {
+  private readonly _abi = abi
 
   'createPool(address,address,uint24)' = {
     sighash: abi.getSighash('createPool(address,address,uint24)'),
-    decode(data: EvmTransaction | string): CreatePool0Function {
-      return abi.decodeFunctionData('createPool(address,address,uint24)', typeof data === 'string' ? data : data.input) as any
-    }
+    decode: (data: EvmTransaction | string): CreatePool0Function => this._abi.decodeFunctionData('createPool(address,address,uint24)', typeof data === 'string' ? data : data.input) as any
   }
 
   createPool = this['createPool(address,address,uint24)']
 
   'enableFeeAmount(uint24,int24)' = {
     sighash: abi.getSighash('enableFeeAmount(uint24,int24)'),
-    decode(data: EvmTransaction | string): EnableFeeAmount0Function {
-      return abi.decodeFunctionData('enableFeeAmount(uint24,int24)', typeof data === 'string' ? data : data.input) as any
-    }
+    decode: (data: EvmTransaction | string): EnableFeeAmount0Function => this._abi.decodeFunctionData('enableFeeAmount(uint24,int24)', typeof data === 'string' ? data : data.input) as any
   }
 
   enableFeeAmount = this['enableFeeAmount(uint24,int24)']
 
   'setOwner(address)' = {
     sighash: abi.getSighash('setOwner(address)'),
-    decode(data: EvmTransaction | string): SetOwner0Function {
-      return abi.decodeFunctionData('setOwner(address)', typeof data === 'string' ? data : data.input) as any
-    }
+    decode: (data: EvmTransaction | string): SetOwner0Function => this._abi.decodeFunctionData('setOwner(address)', typeof data === 'string' ? data : data.input) as any
   }
 
   setOwner = this['setOwner(address)']
@@ -84,6 +74,7 @@ class Functions {
 export const functions = new Functions()
 
 export class Contract {
+  private readonly _abi = abi
   private readonly _chain: Chain
   private readonly blockHeight: string
   readonly address: string
@@ -125,24 +116,26 @@ export class Contract {
   owner = this['owner()']
 
   private async call(signature: string, args: any[]) : Promise<any> {
-    const data = abi.encodeFunctionData(signature, args)
+    const data = this._abi.encodeFunctionData(signature, args)
     const result = await this._chain.client.call('eth_call', [{to: this.address, data}, this.blockHeight])
-    const decoded = abi.decodeFunctionResult(signature, result)
+    const decoded = this._abi.decodeFunctionResult(signature, result)
     return decoded.length > 1 ? decoded : decoded[0]
   }
 
   private async tryCall(signature: string, args: any[]) : Promise<Result<any>> {
-    return this.call(signature, args).then(r => ({success: true, value: r})).catch(() => ({success: false}))
+    return this.call(signature, args).then((r) => ({success: true, value: r})).catch(() => ({success: false}))
   }
 }
 
 export class MulticallContract {
+  private readonly _abi = abi
+  private readonly _multicallAbi = multicallAbi
   private readonly _chain: Chain
   private readonly blockHeight: string
   readonly address: string
 
-  constructor(ctx: BlockContext, address: string)
-  constructor(ctx: ChainContext, block: Block, address: string)
+  constructor(ctx: BlockContext, multicallAddress: string)
+  constructor(ctx: ChainContext, block: Block, multicallAddress: string)
   constructor(ctx: BlockContext, blockOrAddress: Block | string, address?: string) {
     this._chain = ctx._chain
     if (typeof blockOrAddress === 'string')  {
@@ -178,35 +171,29 @@ export class MulticallContract {
   owner = this['owner()']
 
   private async call(signature: string, args: [string, any[]][]) : Promise<any> {
-    if (args.length == 0) return []
-    const encodedArgs = args.map((arg) => [arg[0], abi.encodeFunctionData(signature, arg[1])])
-    const data = multicallAbi.encodeFunctionData('aggregate', [encodedArgs])
+    const encodedArgs = args.map((arg) => [arg[0], this._abi.encodeFunctionData(signature, arg[1])])
+    const data = this._multicallAbi.encodeFunctionData('aggregate', [encodedArgs])
     const response = await this._chain.client.call('eth_call', [{to: this.address, data}, this.blockHeight])
-    const batch = multicallAbi.decodeFunctionResult('aggregate', response).returnData
-    const result: any[] = []
-    for (const item of batch) {
-      const decodedItem = abi.decodeFunctionResult(signature, item)
-      result.push(decodedItem.length > 1 ? decodedItem : decodedItem[0])
-    }
-    return result
+    const batch: string[] = this._multicallAbi.decodeFunctionResult('aggregate', response).returnData
+    return batch.map((item) => {
+      const decodedItem = this._abi.decodeFunctionResult(signature, item)
+      return decodedItem.length > 1 ? decodedItem : decodedItem[0]
+    })
   }
 
   private async tryCall(signature: string, args: [string, any[]][]) : Promise<Result<any>[]> {
-    if (args.length == 0) return []
-    const encodedArgs = args.map((arg) => [arg[0], abi.encodeFunctionData(signature, arg[1])])
-    const data = multicallAbi.encodeFunctionData('tryAggregate', [false, encodedArgs])
+    const encodedArgs = args.map((arg) => [arg[0], this._abi.encodeFunctionData(signature, arg[1])])
+    const data = this._multicallAbi.encodeFunctionData('tryAggregate', [false, encodedArgs])
     const response = await this._chain.client.call('eth_call', [{to: this.address, data}, this.blockHeight])
-    const batch = multicallAbi.decodeFunctionResult('tryAggregate', response).returnData
-    const result: any[] = []
-    for (const item of batch) {
+    const batch: {success: boolean, returnData: string}[] = this._multicallAbi.decodeFunctionResult('tryAggregate', response).returnData
+    return batch.map((item) => {
+      if (!item.success) return {success: false}
       try {
-        if (!item.success) throw new Error()
-        const decodedItem = abi.decodeFunctionResult(signature, item.returnData)
-        result.push({success:true, value: decodedItem.length > 1 ? decodedItem : decodedItem[0]})
+        const decodedItem = this._abi.decodeFunctionResult(signature, item.returnData)
+        return {success: true, value: decodedItem.length > 1 ? decodedItem : decodedItem[0]}
       } catch {
-        result.push({success: false})
+        return {success: false}
       }
-    }
-    return result
+    })
   }
 }

@@ -12,21 +12,18 @@ export type Approval0Event = ([owner: string, spender: string, value: ethers.Big
 export type Transfer0Event = ([from: string, to: string, value: ethers.BigNumber] & {from: string, to: string, value: ethers.BigNumber})
 
 class Events {
+  private readonly _abi = abi
 
   'Approval(address,address,uint256)' = {
-    topic: abi.getEventTopic('Approval(address,address,uint256)'),
-    decode(data: EvmLog): Approval0Event {
-      return abi.decodeEventLog('Approval(address,address,uint256)', data.data, data.topics) as any
-    }
+    topic: this._abi.getEventTopic('Approval(address,address,uint256)'),
+    decode: (data: EvmLog): Approval0Event => this._abi.decodeEventLog('Approval(address,address,uint256)', data.data, data.topics) as any
   }
 
   Approval = this['Approval(address,address,uint256)']
 
   'Transfer(address,address,uint256)' = {
-    topic: abi.getEventTopic('Transfer(address,address,uint256)'),
-    decode(data: EvmLog): Transfer0Event {
-      return abi.decodeEventLog('Transfer(address,address,uint256)', data.data, data.topics) as any
-    }
+    topic: this._abi.getEventTopic('Transfer(address,address,uint256)'),
+    decode: (data: EvmLog): Transfer0Event => this._abi.decodeEventLog('Transfer(address,address,uint256)', data.data, data.topics) as any
   }
 
   Transfer = this['Transfer(address,address,uint256)']
@@ -41,30 +38,25 @@ export type TransferFrom0Function = ([_from: string, _to: string, _value: ethers
 export type Transfer0Function = ([_to: string, _value: ethers.BigNumber] & {_to: string, _value: ethers.BigNumber})
 
 class Functions {
+  private readonly _abi = abi
 
   'approve(address,uint256)' = {
     sighash: abi.getSighash('approve(address,uint256)'),
-    decode(data: EvmTransaction | string): Approve0Function {
-      return abi.decodeFunctionData('approve(address,uint256)', typeof data === 'string' ? data : data.input) as any
-    }
+    decode: (data: EvmTransaction | string): Approve0Function => this._abi.decodeFunctionData('approve(address,uint256)', typeof data === 'string' ? data : data.input) as any
   }
 
   approve = this['approve(address,uint256)']
 
   'transferFrom(address,address,uint256)' = {
     sighash: abi.getSighash('transferFrom(address,address,uint256)'),
-    decode(data: EvmTransaction | string): TransferFrom0Function {
-      return abi.decodeFunctionData('transferFrom(address,address,uint256)', typeof data === 'string' ? data : data.input) as any
-    }
+    decode: (data: EvmTransaction | string): TransferFrom0Function => this._abi.decodeFunctionData('transferFrom(address,address,uint256)', typeof data === 'string' ? data : data.input) as any
   }
 
   transferFrom = this['transferFrom(address,address,uint256)']
 
   'transfer(address,uint256)' = {
     sighash: abi.getSighash('transfer(address,uint256)'),
-    decode(data: EvmTransaction | string): Transfer0Function {
-      return abi.decodeFunctionData('transfer(address,uint256)', typeof data === 'string' ? data : data.input) as any
-    }
+    decode: (data: EvmTransaction | string): Transfer0Function => this._abi.decodeFunctionData('transfer(address,uint256)', typeof data === 'string' ? data : data.input) as any
   }
 
   transfer = this['transfer(address,uint256)']
@@ -73,6 +65,7 @@ class Functions {
 export const functions = new Functions()
 
 export class Contract {
+  private readonly _abi = abi
   private readonly _chain: Chain
   private readonly blockHeight: string
   readonly address: string
@@ -135,24 +128,26 @@ export class Contract {
   allowance = this['allowance(address,address)']
 
   private async call(signature: string, args: any[]) : Promise<any> {
-    const data = abi.encodeFunctionData(signature, args)
+    const data = this._abi.encodeFunctionData(signature, args)
     const result = await this._chain.client.call('eth_call', [{to: this.address, data}, this.blockHeight])
-    const decoded = abi.decodeFunctionResult(signature, result)
+    const decoded = this._abi.decodeFunctionResult(signature, result)
     return decoded.length > 1 ? decoded : decoded[0]
   }
 
   private async tryCall(signature: string, args: any[]) : Promise<Result<any>> {
-    return this.call(signature, args).then(r => ({success: true, value: r})).catch(() => ({success: false}))
+    return this.call(signature, args).then((r) => ({success: true, value: r})).catch(() => ({success: false}))
   }
 }
 
 export class MulticallContract {
+  private readonly _abi = abi
+  private readonly _multicallAbi = multicallAbi
   private readonly _chain: Chain
   private readonly blockHeight: string
   readonly address: string
 
-  constructor(ctx: BlockContext, address: string)
-  constructor(ctx: ChainContext, block: Block, address: string)
+  constructor(ctx: BlockContext, multicallAddress: string)
+  constructor(ctx: ChainContext, block: Block, multicallAddress: string)
   constructor(ctx: BlockContext, blockOrAddress: Block | string, address?: string) {
     this._chain = ctx._chain
     if (typeof blockOrAddress === 'string')  {
@@ -209,35 +204,29 @@ export class MulticallContract {
   allowance = this['allowance(address,address)']
 
   private async call(signature: string, args: [string, any[]][]) : Promise<any> {
-    if (args.length == 0) return []
-    const encodedArgs = args.map((arg) => [arg[0], abi.encodeFunctionData(signature, arg[1])])
-    const data = multicallAbi.encodeFunctionData('aggregate', [encodedArgs])
+    const encodedArgs = args.map((arg) => [arg[0], this._abi.encodeFunctionData(signature, arg[1])])
+    const data = this._multicallAbi.encodeFunctionData('aggregate', [encodedArgs])
     const response = await this._chain.client.call('eth_call', [{to: this.address, data}, this.blockHeight])
-    const batch = multicallAbi.decodeFunctionResult('aggregate', response).returnData
-    const result: any[] = []
-    for (const item of batch) {
-      const decodedItem = abi.decodeFunctionResult(signature, item)
-      result.push(decodedItem.length > 1 ? decodedItem : decodedItem[0])
-    }
-    return result
+    const batch: string[] = this._multicallAbi.decodeFunctionResult('aggregate', response).returnData
+    return batch.map((item) => {
+      const decodedItem = this._abi.decodeFunctionResult(signature, item)
+      return decodedItem.length > 1 ? decodedItem : decodedItem[0]
+    })
   }
 
   private async tryCall(signature: string, args: [string, any[]][]) : Promise<Result<any>[]> {
-    if (args.length == 0) return []
-    const encodedArgs = args.map((arg) => [arg[0], abi.encodeFunctionData(signature, arg[1])])
-    const data = multicallAbi.encodeFunctionData('tryAggregate', [false, encodedArgs])
+    const encodedArgs = args.map((arg) => [arg[0], this._abi.encodeFunctionData(signature, arg[1])])
+    const data = this._multicallAbi.encodeFunctionData('tryAggregate', [false, encodedArgs])
     const response = await this._chain.client.call('eth_call', [{to: this.address, data}, this.blockHeight])
-    const batch = multicallAbi.decodeFunctionResult('tryAggregate', response).returnData
-    const result: any[] = []
-    for (const item of batch) {
+    const batch: {success: boolean, returnData: string}[] = this._multicallAbi.decodeFunctionResult('tryAggregate', response).returnData
+    return batch.map((item) => {
+      if (!item.success) return {success: false}
       try {
-        if (!item.success) throw new Error()
-        const decodedItem = abi.decodeFunctionResult(signature, item.returnData)
-        result.push({success:true, value: decodedItem.length > 1 ? decodedItem : decodedItem[0]})
+        const decodedItem = this._abi.decodeFunctionResult(signature, item.returnData)
+        return {success: true, value: decodedItem.length > 1 ? decodedItem : decodedItem[0]}
       } catch {
-        result.push({success: false})
+        return {success: false}
       }
-    }
-    return result
+    })
   }
 }

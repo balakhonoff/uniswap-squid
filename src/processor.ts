@@ -12,7 +12,7 @@ let processor = new EvmBatchProcessor()
     .setBlockRange({from: 12369621})
     .setDataSource({
         archive: 'https://eth.archive.subsquid.io',
-        chain: process.env.CHAIN_NODE,
+        chain: process.env.ETH_CHAIN_NODE,
     })
     .addLog(FACTORY_ADDRESS, {
         filter: [[factoryAbi.events['PoolCreated(address,address,uint24,int24,address)'].topic]],
@@ -63,13 +63,7 @@ let processor = new EvmBatchProcessor()
     })
 
 processor.run(new TypeormDatabase(), async (ctx) => {
-    console.time('factory')
     await new FactoryProcessor(ctx).run(ctx.blocks)
-    console.timeEnd('factory')
-    console.time('core')
     await new PairsProcessor(ctx).run(ctx.blocks)
-    console.timeEnd('core')
-    console.time('positions')
     await new PositionProcessor(ctx).run(ctx.blocks)
-    console.timeEnd('positions')
 })
