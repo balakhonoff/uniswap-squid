@@ -1083,7 +1083,11 @@ export async function handleFlash(ctx: LogHandlerContext<Store>): Promise<void> 
 async function updateTickFeeVars(ctx: BlockHandlerContext<Store>, ticks: Tick[]): Promise<void> {
     // not all ticks are initialized so obtaining null is expected behavior
     let poolContract = new poolAbi.MulticallContract(ctx, MULTICALL_ADDRESS)
-    let tickResult = await poolContract.ticks.call(ticks.map((t) => [t.poolId, [Number(t.tickIdx)]]))
+    let tickResult = await Promise.all(
+        [...splitIntoBatches(ticks, 500)].map((b) =>
+            poolContract.ticks.call(b.map((t) => [t.poolId, [Number(t.tickIdx)]]))
+        )
+    ).then((r) => r.flat())
 
     for (let i = 0; i < ticks.length; i++) {
         ticks[i].feeGrowthOutside0X128 = tickResult[i][1].toBigInt()
@@ -1104,6 +1108,19 @@ async function updatePoolFeeVars(ctx: BlockHandlerContext<Store>, pools: Pool[])
 
 function tickId(poolId: string, tickIdx: number) {
     return `${poolId}#${tickIdx}`
+}
+
+function* splitIntoBatches<T>(list: T[], maxBatchSize: number): Generator<T[]> {
+    if (list.length <= maxBatchSize) {
+        yield list
+    } else {
+        let offset = 0
+        while (list.length - offset > maxBatchSize) {
+            yield list.slice(offset, offset + maxBatchSize)
+            offset += maxBatchSize
+        }
+        yield list.slice(offset)
+    }
 }
 
 type Item =

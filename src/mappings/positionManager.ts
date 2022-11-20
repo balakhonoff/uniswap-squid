@@ -137,7 +137,6 @@ export class PositionProcessor extends MappingProcessor<Item> {
         let position = this.entities.get(Position, data.tokenId, false)
         if (position == null) return
 
-
         let token0 = await this.entities.get(Token, position.token0Id)
         let token1 = await this.entities.get(Token, position.token1Id)
 
@@ -246,7 +245,11 @@ function createPosition(positionId: string) {
 async function initPositions(ctx: BlockHandlerContext<unknown>, ids: string[]) {
     let contract = new positionsAbi.MulticallContract(ctx, MULTICALL_ADDRESS)
 
-    const positionResults = await contract.positions.tryCall(ids.map((id) => [POSITIONS_ADDRESS, [BigNumber.from(id)]]))
+    const positionResults = await Promise.all(
+        [...splitIntoBatches(ids, 500)].map((batch) =>
+            contract.positions.tryCall(batch.map((id) => [POSITIONS_ADDRESS, [BigNumber.from(id)]]))
+        )
+    ).then((r) => r.flat())
 
     const positionsData: {positionId: string; token0Id: string; token1Id: string; fee: number}[] = []
     for (let i = 0; i < ids.length; i++) {
@@ -363,6 +366,19 @@ function processTransafer(ctx: LogHandlerContext<unknown, {evmLog: {topics: true
     return {
         tokenId: event.tokenId.toString(),
         to: event.to.toLowerCase(),
+    }
+}
+
+function* splitIntoBatches<T>(list: T[], maxBatchSize: number): Generator<T[]> {
+    if (list.length <= maxBatchSize) {
+        yield list
+    } else {
+        let offset = 0
+        while (list.length - offset > maxBatchSize) {
+            yield list.slice(offset, offset + maxBatchSize)
+            offset += maxBatchSize
+        }
+        yield list.slice(offset)
     }
 }
 
