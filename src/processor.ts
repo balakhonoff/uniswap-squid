@@ -1,6 +1,6 @@
 import {EvmBatchProcessor} from '@subsquid/evm-processor'
 import {TypeormDatabase} from '@subsquid/typeorm-store'
-import {CHAIN_NODE, FACTORY_ADDRESS, POSITIONS_ADDRESS} from './utils/constants'
+import {FACTORY_ADDRESS, POSITIONS_ADDRESS} from './utils/constants'
 import {FactoryProcessor} from './mappings/factory'
 import {PairsProcessor} from './mappings/core'
 import {PositionProcessor} from './mappings/positionManager'
@@ -11,7 +11,7 @@ import * as positionsAbi from './abi/NonfungiblePositionManager'
 let processor = new EvmBatchProcessor()
     .setBlockRange({from: 12369621})
     .setDataSource({
-        archive: 'https://eth.archive.subsquid.io',
+        archive: 'https://eth-stage1.archive.subsquid.io',
         chain: process.env.ETH_CHAIN_NODE,
     })
     .addLog(FACTORY_ADDRESS, {
