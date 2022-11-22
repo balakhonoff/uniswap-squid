@@ -6,16 +6,15 @@ import {
     BlockHandlerContext,
 } from '@subsquid/evm-processor'
 import {LogItem, TransactionItem} from '@subsquid/evm-processor/lib/interfaces/dataSelection'
-import {Store} from '@subsquid/typeorm-store'
 import {Token, Position, Pool, PositionSnapshot} from '../model'
 import {BlockMap} from '../utils/blockMap'
 import {ADDRESS_ZERO, MULTICALL_ADDRESS, POSITIONS_ADDRESS, FACTORY_ADDRESS} from '../utils/constants'
-import {MappingProcessor} from './mappingProcessor'
 import * as positionsAbi from './../abi/NonfungiblePositionManager'
 import * as factoryAbi from './../abi/factory'
 import {BigDecimal} from '@subsquid/big-decimal'
 import {BigNumber} from 'ethers'
-import {last} from '../utils/tools'
+import {last, processItem, splitIntoBatches} from '../utils/tools'
+import {EntityManager} from '../utils/entityManager'
 
 type EventData =
     | (TransferData & {type: 'Transfer'})
@@ -23,206 +22,197 @@ type EventData =
     | (DecreaseData & {type: 'Decrease'})
     | (CollectData & {type: 'Collect'})
 
-export class PositionProcessor extends MappingProcessor<Item> {
-    constructor(ctx: CommonHandlerContext<Store>) {
-        super(ctx)
-    }
+type ContextWithEntityManager = CommonHandlerContext<unknown> & {entities: EntityManager}
 
-    async run(blocks: BatchBlock<Item>[]): Promise<void> {
-        const eventsData = this.processItems(blocks)
-        if (eventsData.size == 0) return
+export async function processPositions(ctx: ContextWithEntityManager, blocks: BatchBlock<Item>[]): Promise<void> {
+    const eventsData = processItems(ctx, blocks)
+    if (eventsData.size == 0) return
 
-        await this.prefetch(eventsData, last(blocks).header)
+    await prefetch(ctx, eventsData, last(blocks).header)
 
-        for (const [block, blockEventsData] of eventsData) {
-            for (const data of blockEventsData) {
-                switch (data.type) {
-                    case 'Increase':
-                        await this.processIncreaseData(block, data)
-                        break
-                    case 'Decrease':
-                        await this.processDecreaseData(block, data)
-                        break
-                    case 'Collect':
-                        await this.processCollectData(block, data)
-                        break
-                    case 'Transfer':
-                        await this.processTransferData(block, data)
-                        break
-                }
+    for (const [block, blockEventsData] of eventsData) {
+        for (const data of blockEventsData) {
+            switch (data.type) {
+                case 'Increase':
+                    await processIncreaseData(ctx, block, data)
+                    break
+                case 'Decrease':
+                    await processDecreaseData(ctx, block, data)
+                    break
+                case 'Collect':
+                    await processCollectData(ctx, block, data)
+                    break
+                case 'Transfer':
+                    await processTransferData(ctx, block, data)
+                    break
             }
         }
-
-        // await updateFeeVars(this.createContext(last(blocks).header), this.entities.values(Position))
-
-        await this.ctx.store.save(this.entities.values(Position))
     }
 
-    private async prefetch(eventsData: BlockMap<EventData>, block: EvmBlock) {
-        const positionIds = new Set<string>()
-        for (const [, blockEventsData] of eventsData) {
-            for (const data of blockEventsData) {
-                this.entities.defer(Position, data.tokenId)
-                positionIds.add(data.tokenId)
+    // await updateFeeVars(createContext(last(blocks).header), ctx.entities.values(Position))
+}
+
+async function prefetch(ctx: ContextWithEntityManager, eventsData: BlockMap<EventData>, block: EvmBlock) {
+    const positionIds = new Set<string>()
+    for (const [, blockEventsData] of eventsData) {
+        for (const data of blockEventsData) {
+            ctx.entities.defer(Position, data.tokenId)
+            positionIds.add(data.tokenId)
+        }
+    }
+
+    await ctx.entities.load(Position)
+
+    const newPositionIds: string[] = []
+    for (const id of positionIds) {
+        if (!ctx.entities.get(Position, id, false)) newPositionIds.push(id)
+    }
+
+    const newPositions = await initPositions({...ctx, block}, newPositionIds)
+    for (const position of newPositions) {
+        ctx.entities.add(position)
+    }
+
+    for (const position of ctx.entities.values(Position)) {
+        ctx.entities.defer(Token, position.token0Id, position.token1Id)
+    }
+
+    await ctx.entities.load(Token)
+}
+
+function processItems(ctx: CommonHandlerContext<unknown>, blocks: BatchBlock<Item>[]) {
+    let eventsData = new BlockMap<EventData>()
+
+    processItem(blocks, (block, item) => {
+        if (item.kind !== 'evmLog') return
+        switch (item.evmLog.topics[0]) {
+            case positionsAbi.events['IncreaseLiquidity(uint256,uint128,uint256,uint256)'].topic: {
+                const data = processInreaseLiquidity({...ctx, block, ...item})
+                eventsData.push(block, {
+                    type: 'Increase',
+                    ...data,
+                })
+                return
+            }
+            case positionsAbi.events['DecreaseLiquidity(uint256,uint128,uint256,uint256)'].topic: {
+                const data = processDecreaseLiquidity({...ctx, block, ...item})
+                eventsData.push(block, {
+                    type: 'Decrease',
+                    ...data,
+                })
+                return
+            }
+            case positionsAbi.events['Collect(uint256,address,uint256,uint256)'].topic: {
+                const data = processCollect({...ctx, block, ...item})
+                eventsData.push(block, {
+                    type: 'Collect',
+                    ...data,
+                })
+                return
+            }
+            case positionsAbi.events['Transfer(address,address,uint256)'].topic: {
+                const data = processTransafer({...ctx, block, ...item})
+                eventsData.push(block, {
+                    type: 'Transfer',
+                    ...data,
+                })
+                return
             }
         }
+    })
 
-        await this.entities.load(Position)
+    return eventsData
+}
 
-        const newPositionIds: string[] = []
-        for (const id of positionIds) {
-            if (!this.entities.get(Position, id, false)) newPositionIds.push(id)
-        }
+async function processIncreaseData(ctx: ContextWithEntityManager, block: EvmBlock, data: IncreaseData) {
+    let position = ctx.entities.get(Position, data.tokenId, false)
+    if (position == null) return
 
-        const newPositions = await initPositions(this.createContext(block), newPositionIds)
-        for (const position of newPositions) {
-            this.entities.add(position)
-        }
+    let token0 = await ctx.entities.get(Token, position.token0Id)
+    let token1 = await ctx.entities.get(Token, position.token1Id)
 
-        for (const position of this.entities.values(Position)) {
-            this.entities.defer(Token, position.token0Id, position.token1Id)
-        }
+    if (!token0 || !token1) return
 
-        await this.entities.load(Token)
+    let amount0 = BigDecimal(data.amount0, token0.decimals).toNumber()
+    let amount1 = BigDecimal(data.amount1, token1.decimals).toNumber()
+
+    position.liquidity = position.liquidity + data.liquidity
+    position.depositedToken0 = position.depositedToken0 + amount0
+    position.depositedToken1 = position.depositedToken1 + amount1
+
+    updatePositionSnapshot(ctx, block, position.id)
+}
+
+async function processDecreaseData(ctx: ContextWithEntityManager, block: EvmBlock, data: DecreaseData) {
+    // temp fix
+    if (block.height == 14317993) return
+
+    let position = ctx.entities.get(Position, data.tokenId, false)
+    if (position == null) return
+
+    let token0 = await ctx.entities.get(Token, position.token0Id)
+    let token1 = await ctx.entities.get(Token, position.token1Id)
+
+    if (!token0 || !token1) return
+
+    let amount0 = BigDecimal(data.amount0, token0.decimals).toNumber()
+    let amount1 = BigDecimal(data.amount1, token1.decimals).toNumber()
+
+    position.liquidity = position.liquidity - data.liquidity
+    position.withdrawnToken0 = position.depositedToken0 + amount0
+    position.withdrawnToken1 = position.depositedToken1 + amount1
+
+    updatePositionSnapshot(ctx, block, position.id)
+}
+
+async function processCollectData(ctx: ContextWithEntityManager, block: EvmBlock, data: CollectData) {
+    let position = ctx.entities.get(Position, data.tokenId, false)
+    // position was not able to be fetched
+    if (position == null) return
+
+    let token0 = ctx.entities.getOrFail(Token, position.token0Id, false)
+    let amount0 = BigDecimal(data.amount0, token0.decimals).toNumber()
+
+    position.collectedFeesToken0 = position.collectedFeesToken0 + amount0
+    position.collectedFeesToken1 = position.collectedFeesToken1 + amount0
+
+    updatePositionSnapshot(ctx, block, position.id)
+}
+
+async function processTransferData(ctx: ContextWithEntityManager, block: EvmBlock, data: TransferData) {
+    let position = ctx.entities.get(Position, data.tokenId, false)
+
+    // position was not able to be fetched
+    if (position == null) return
+
+    position.owner = data.to
+
+    updatePositionSnapshot(ctx, block, position.id)
+}
+
+async function updatePositionSnapshot(ctx: ContextWithEntityManager, block: EvmBlock, positionId: string) {
+    const position = ctx.entities.getOrFail(Position, positionId, false)
+
+    const positionBlockId = snapshotId(positionId, block.height)
+
+    let positionSnapshot = ctx.entities.get(PositionSnapshot, positionBlockId, false)
+    if (!positionSnapshot) {
+        positionSnapshot = new PositionSnapshot({id: positionBlockId})
+        ctx.entities.add(positionSnapshot)
     }
-
-    private processItems(blocks: BatchBlock<Item>[]) {
-        let eventsData = new BlockMap<EventData>()
-
-        this.processItem(blocks, (block, item) => {
-            if (item.kind !== 'evmLog') return
-            switch (item.evmLog.topics[0]) {
-                case positionsAbi.events['IncreaseLiquidity(uint256,uint128,uint256,uint256)'].topic: {
-                    const data = processInreaseLiquidity({...this.createContext(block), ...item})
-                    eventsData.push(block, {
-                        type: 'Increase',
-                        ...data,
-                    })
-                    return
-                }
-                case positionsAbi.events['DecreaseLiquidity(uint256,uint128,uint256,uint256)'].topic: {
-                    const data = processDecreaseLiquidity({...this.createContext(block), ...item})
-                    eventsData.push(block, {
-                        type: 'Decrease',
-                        ...data,
-                    })
-                    this.entities.defer(Position, data.tokenId)
-                    return
-                }
-                case positionsAbi.events['Collect(uint256,address,uint256,uint256)'].topic: {
-                    const data = processCollect({...this.createContext(block), ...item})
-                    eventsData.push(block, {
-                        type: 'Collect',
-                        ...data,
-                    })
-                    this.entities.defer(Position, data.tokenId)
-                    return
-                }
-                case positionsAbi.events['Transfer(address,address,uint256)'].topic: {
-                    const data = processTransafer({...this.createContext(block), ...item})
-                    eventsData.push(block, {
-                        type: 'Transfer',
-                        ...data,
-                    })
-                    this.entities.defer(Position, data.tokenId)
-                    return
-                }
-            }
-        })
-
-        return eventsData
-    }
-
-    async processIncreaseData(block: EvmBlock, data: IncreaseData) {
-        let position = this.entities.get(Position, data.tokenId, false)
-        if (position == null) return
-
-        let token0 = await this.entities.get(Token, position.token0Id)
-        let token1 = await this.entities.get(Token, position.token1Id)
-
-        if (!token0 || !token1) return
-
-        let amount0 = BigDecimal(data.amount0, token0.decimals).toNumber()
-        let amount1 = BigDecimal(data.amount1, token1.decimals).toNumber()
-
-        position.liquidity = position.liquidity + data.liquidity
-        position.depositedToken0 = position.depositedToken0 + amount0
-        position.depositedToken1 = position.depositedToken1 + amount1
-
-        this.updatePositionSnapshot(block, position.id)
-    }
-
-    async processDecreaseData(block: EvmBlock, data: DecreaseData) {
-        // temp fix
-        if (block.height == 14317993) return
-
-        let position = this.entities.get(Position, data.tokenId, false)
-        if (position == null) return
-
-        let token0 = await this.entities.get(Token, position.token0Id)
-        let token1 = await this.entities.get(Token, position.token1Id)
-
-        if (!token0 || !token1) return
-
-        let amount0 = BigDecimal(data.amount0, token0.decimals).toNumber()
-        let amount1 = BigDecimal(data.amount1, token1.decimals).toNumber()
-
-        position.liquidity = position.liquidity - data.liquidity
-        position.withdrawnToken0 = position.depositedToken0 + amount0
-        position.withdrawnToken1 = position.depositedToken1 + amount1
-
-        this.updatePositionSnapshot(block, position.id)
-    }
-
-    async processCollectData(block: EvmBlock, data: CollectData) {
-        let position = this.entities.get(Position, data.tokenId, false)
-        // position was not able to be fetched
-        if (position == null) return
-
-        let token0 = this.entities.getOrFail(Token, position.token0Id, false)
-        let amount0 = BigDecimal(data.amount0, token0.decimals).toNumber()
-
-        position.collectedFeesToken0 = position.collectedFeesToken0 + amount0
-        position.collectedFeesToken1 = position.collectedFeesToken1 + amount0
-
-        this.updatePositionSnapshot(block, position.id)
-    }
-
-    async processTransferData(block: EvmBlock, data: TransferData) {
-        let position = this.entities.get(Position, data.tokenId, false)
-
-        // position was not able to be fetched
-        if (position == null) return
-
-        position.owner = data.to
-
-        this.updatePositionSnapshot(block, position.id)
-    }
-
-    private async updatePositionSnapshot(block: EvmBlock, positionId: string) {
-        const position = this.entities.getOrFail(Position, positionId, false)
-
-        const positionBlockId = snapshotId(positionId, block.height)
-
-        let positionSnapshot = this.entities.get(PositionSnapshot, positionBlockId, false)
-        if (!positionSnapshot) {
-            positionSnapshot = new PositionSnapshot({id: positionBlockId})
-            this.entities.add(positionSnapshot)
-        }
-        positionSnapshot.owner = position.owner
-        positionSnapshot.pool = position.pool
-        positionSnapshot.positionId = positionId
-        positionSnapshot.blockNumber = block.height
-        positionSnapshot.timestamp = new Date(block.timestamp)
-        positionSnapshot.liquidity = position.liquidity
-        positionSnapshot.depositedToken0 = position.depositedToken0
-        positionSnapshot.depositedToken1 = position.depositedToken1
-        positionSnapshot.withdrawnToken0 = position.withdrawnToken0
-        positionSnapshot.withdrawnToken1 = position.withdrawnToken1
-        positionSnapshot.collectedFeesToken0 = position.collectedFeesToken0
-        positionSnapshot.collectedFeesToken1 = position.collectedFeesToken1
-        return
-    }
+    positionSnapshot.owner = position.owner
+    positionSnapshot.pool = position.pool
+    positionSnapshot.positionId = positionId
+    positionSnapshot.blockNumber = block.height
+    positionSnapshot.timestamp = new Date(block.timestamp)
+    positionSnapshot.liquidity = position.liquidity
+    positionSnapshot.depositedToken0 = position.depositedToken0
+    positionSnapshot.depositedToken1 = position.depositedToken1
+    positionSnapshot.withdrawnToken0 = position.withdrawnToken0
+    positionSnapshot.withdrawnToken1 = position.withdrawnToken1
+    positionSnapshot.collectedFeesToken0 = position.collectedFeesToken0
+    positionSnapshot.collectedFeesToken1 = position.collectedFeesToken1
+    return
 }
 
 function createPosition(positionId: string) {
@@ -245,11 +235,11 @@ function createPosition(positionId: string) {
 async function initPositions(ctx: BlockHandlerContext<unknown>, ids: string[]) {
     let contract = new positionsAbi.MulticallContract(ctx, MULTICALL_ADDRESS)
 
-    const positionResults = await Promise.all(
-        [...splitIntoBatches(ids, 500)].map((batch) =>
-            contract.positions.tryCall(batch.map((id) => [POSITIONS_ADDRESS, [BigNumber.from(id)]]))
-        )
-    ).then((r) => r.flat())
+    const positionResults: any[] = []
+    for (let batch of splitIntoBatches(ids, 500)) {
+        const res = await contract.positions.tryCall(batch.map((id) => [POSITIONS_ADDRESS, [BigNumber.from(id)]]))
+        positionResults.push(...res)
+    }
 
     const positionsData: {positionId: string; token0Id: string; token1Id: string; fee: number}[] = []
     for (let i = 0; i < ids.length; i++) {
@@ -369,18 +359,6 @@ function processTransafer(ctx: LogHandlerContext<unknown, {evmLog: {topics: true
     }
 }
 
-function* splitIntoBatches<T>(list: T[], maxBatchSize: number): Generator<T[]> {
-    if (list.length <= maxBatchSize) {
-        yield list
-    } else {
-        let offset = 0
-        while (list.length - offset > maxBatchSize) {
-            yield list.slice(offset, offset + maxBatchSize)
-            offset += maxBatchSize
-        }
-        yield list.slice(offset)
-    }
-}
 
 type Item =
     | LogItem<{

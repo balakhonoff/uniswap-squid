@@ -1,13 +1,14 @@
-import {assertNotNull, BatchBlock, BlockHandlerContext} from '@subsquid/evm-processor'
+import {assertNotNull, BatchBlock, BlockHandlerContext, CommonHandlerContext} from '@subsquid/evm-processor'
 import {Factory, Bundle, Pool, Token} from '../model'
 import {FACTORY_ADDRESS, ADDRESS_ZERO} from '../utils/constants'
 import {WHITELIST_TOKENS} from '../utils/pricing'
 import {fetchTokensSymbol, fetchTokensName, fetchTokensTotalSupply, fetchTokensDecimals} from '../utils/token'
 import * as factoryAbi from '../abi/factory'
-import {MappingProcessor} from './mappingProcessor'
 import {LogItem, TransactionItem} from '@subsquid/evm-processor/lib/interfaces/dataSelection'
 import {BlockMap} from '../utils/blockMap'
-import {last} from '../utils/tools'
+import {last, processItem} from '../utils/tools'
+import {Store} from '@subsquid/typeorm-store'
+import {EntityManager} from '../utils/entityManager'
 
 interface PairCreatedData {
     poolId: string
@@ -16,98 +17,99 @@ interface PairCreatedData {
     fee: number
 }
 
-export class FactoryProcessor extends MappingProcessor<Item> {
-    async run(blocks: BatchBlock<Item>[]): Promise<void> {
-        const newPairsData = this.processItems(blocks)
-        if (newPairsData.size == 0) return
+type ContextWithEntityManager = CommonHandlerContext<unknown> & {entities: EntityManager}
 
-        await this.prefetch(newPairsData)
+// export class FactoryProcessor extends MappingProcessor<Item> {
+export async function processFactory(ctx: ContextWithEntityManager, blocks: BatchBlock<Item>[]): Promise<void> {
+    const newPairsData = await processItems(ctx, blocks)
+    if (newPairsData.size == 0) return
 
-        let bundle = await this.entities.get(Bundle, '1')
-        if (!bundle) {
-            bundle = createBundle('1')
-            this.entities.add(bundle)
-        }
+    await prefetch(ctx, newPairsData)
 
-        let factory = await this.ctx.store.get(Factory, FACTORY_ADDRESS)
-        if (!factory) {
-            factory = createFactory(FACTORY_ADDRESS)
-            this.entities.add(factory)
-        }
-
-        factory.poolCount++
-
-        for (const [block, blockEventsData] of newPairsData) {
-            for (const data of blockEventsData) {
-                const pool = createPool(data.poolId, data.token0Id, data.token1Id)
-                pool.feeTier = data.fee
-                pool.createdAtTimestamp = new Date(block.timestamp)
-                pool.createdAtBlockNumber = block.height
-
-                this.entities.add(pool)
-
-                let token0 = this.entities.get(Token, pool.token0Id, false)
-                if (!token0) {
-                    token0 = createToken(pool.token0Id)
-                    this.entities.add(token0)
-                }
-
-                let token1 = this.entities.get(Token, pool.token1Id, false)
-                if (!token1) {
-                    token1 = createToken(pool.token1Id)
-                    this.entities.add(token1)
-                }
-
-                // update whitelisted pools
-                if (WHITELIST_TOKENS.includes(token0.id)) token1.whitelistPools.push(pool.id)
-                if (WHITELIST_TOKENS.includes(token1.id)) token0.whitelistPools.push(pool.id)
-            }
-        }
-
-        await syncTokens(this.createContext(last(blocks).header), this.entities.values(Token))
-
-        await this.ctx.store.save(bundle)
-        await this.ctx.store.save(factory)
-        await this.ctx.store.save(this.entities.values(Token))
-        await this.ctx.store.save(this.entities.values(Pool))
+    let bundle = await ctx.entities.get(Bundle, '1')
+    if (!bundle) {
+        bundle = createBundle('1')
+        ctx.entities.add(bundle)
     }
 
-    private async prefetch(eventsData: BlockMap<PairCreatedData>) {
-        for (const [, blockEventsData] of eventsData) {
-            for (const data of blockEventsData) {
-                this.entities.defer(Token, data.token0Id, data.token1Id)
-            }
-        }
-
-        await this.entities.load(Token)
+    let factory = await ctx.entities.get(Factory, FACTORY_ADDRESS)
+    if (!factory) {
+        factory = createFactory(FACTORY_ADDRESS)
+        ctx.entities.add(factory)
     }
 
-    private processItems(blocks: BatchBlock<Item>[]) {
-        let newPairsData = new BlockMap<PairCreatedData>()
+    factory.poolCount++
 
-        this.processItem(blocks, (block, item) => {
-            if (
-                item.address !== FACTORY_ADDRESS ||
-                item.kind !== 'evmLog' ||
-                item.evmLog.topics[0] !== factoryAbi.events['PoolCreated(address,address,uint24,int24,address)'].topic
-            )
-                return
+    for (const [block, blockEventsData] of newPairsData) {
+        for (const data of blockEventsData) {
+            const pool = createPool(data.poolId, data.token0Id, data.token1Id)
+            pool.feeTier = data.fee
+            pool.createdAtTimestamp = new Date(block.timestamp)
+            pool.createdAtBlockNumber = block.height
 
-            const event = factoryAbi.events['PoolCreated(address,address,uint24,int24,address)'].decode(item.evmLog)
+            ctx.entities.add(pool)
 
-            // // temp fix (i don't know what is this)
-            // if (event.pool.toLowerCase() == '0x8fe8d9bb8eeba3ed688069c3d6b556c9ca258248') return
+            let token0 = ctx.entities.get(Token, pool.token0Id, false)
+            if (!token0) {
+                token0 = createToken(pool.token0Id)
+                ctx.entities.add(token0)
+            }
 
-            newPairsData.push(block, {
-                poolId: event.pool.toLowerCase(),
-                token0Id: event.token0.toLowerCase(),
-                token1Id: event.token1.toLowerCase(),
-                fee: event.fee,
-            })
+            let token1 = ctx.entities.get(Token, pool.token1Id, false)
+            if (!token1) {
+                token1 = createToken(pool.token1Id)
+                ctx.entities.add(token1)
+            }
+
+            // update whitelisted pools
+            if (WHITELIST_TOKENS.includes(token0.id)) token1.whitelistPools.push(pool.id)
+            if (WHITELIST_TOKENS.includes(token1.id)) token0.whitelistPools.push(pool.id)
+        }
+    }
+
+    await syncTokens({...ctx, block: last(blocks).header}, ctx.entities.values(Token))
+
+    // await ctx.store.save(bundle)
+    // await ctx.store.save(factory)
+    // await ctx.store.save(ctx.entities.values(Token))
+    // await ctx.store.save(ctx.entities.values(Pool))
+}
+
+async function prefetch(ctx: ContextWithEntityManager, eventsData: BlockMap<PairCreatedData>) {
+    for (const [, blockEventsData] of eventsData) {
+        for (const data of blockEventsData) {
+            ctx.entities.defer(Token, data.token0Id, data.token1Id)
+        }
+    }
+
+    await ctx.entities.load(Token)
+}
+
+async function processItems(ctx: CommonHandlerContext<unknown>, blocks: BatchBlock<Item>[]) {
+    let newPairsData = new BlockMap<PairCreatedData>()
+
+    processItem(blocks, (block, item) => {
+        if (
+            item.address !== FACTORY_ADDRESS ||
+            item.kind !== 'evmLog' ||
+            item.evmLog.topics[0] !== factoryAbi.events['PoolCreated(address,address,uint24,int24,address)'].topic
+        )
+            return
+
+        const event = factoryAbi.events['PoolCreated(address,address,uint24,int24,address)'].decode(item.evmLog)
+
+        // // temp fix (i don't know what is this)
+        // if (event.pool.toLowerCase() == '0x8fe8d9bb8eeba3ed688069c3d6b556c9ca258248') return
+
+        newPairsData.push(block, {
+            poolId: event.pool.toLowerCase(),
+            token0Id: event.token0.toLowerCase(),
+            token1Id: event.token1.toLowerCase(),
+            fee: event.fee,
         })
+    })
 
-        return newPairsData
-    }
+    return newPairsData
 }
 
 function createFactory(id: string) {

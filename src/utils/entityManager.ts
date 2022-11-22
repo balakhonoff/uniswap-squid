@@ -1,6 +1,7 @@
 import {assertNotNull, CommonHandlerContext} from '@subsquid/evm-processor'
 import {Store} from '@subsquid/typeorm-store'
 import {In} from 'typeorm'
+import {splitIntoBatches} from './tools'
 
 export interface EntityClass<T extends Entity> {
     new (): T
@@ -31,15 +32,23 @@ export class EntityManager {
     }
 
     async load<T extends Entity>(entity: EntityClass<T>) {
+        const fetched = new Map<string, T>()
+
         const cache = this.getCache(entity)
 
         const ids = this.deferredIds.get(entity)
-        if (!ids || ids.size == 0) return cache
+        if (!ids || ids.size == 0) return fetched
 
-        await this.store.findBy(entity, {id: In([...ids])} as any).then((es) => es.forEach((e) => cache.set(e.id, e)))
+        for (const idBatch of splitIntoBatches([...ids], 1000))
+            await this.store.findBy(entity, {id: In(idBatch)} as any).then((es) =>
+                es.forEach((e) => {
+                    cache.set(e.id, e)
+                    fetched.set(e.id, e)
+                })
+            )
         ids.clear()
 
-        return cache
+        return fetched
     }
 
     get<T extends Entity>(entity: EntityClass<T>, id: string): Promise<T | undefined>
