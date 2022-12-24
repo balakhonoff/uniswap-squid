@@ -30,7 +30,7 @@ import {
 let processor = new EvmBatchProcessor()
     .setBlockRange({from: 12369621})
     .setDataSource({
-        archive: 'https://eth-stage1.archive.subsquid.io',
+        archive: 'https://eth.archive.subsquid.io',
         chain: process.env.ETH_CHAIN_NODE,
     })
     .addLog(FACTORY_ADDRESS, {
